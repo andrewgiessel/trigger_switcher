@@ -5,9 +5,10 @@
 
 const int triggerPin = 4;
 
-int outPin = 8;
+int outPin = 7;
 int triggerVal = 0;
 char inputVal = '0';
+int defaultPin = 7;
 
 boolean wasTriggered = 0;
 
@@ -36,9 +37,9 @@ void setup() {
    pinMode(41, OUTPUT); // valve 15
    
    // set valve 0 to on by default
-   digitalWrite(7, HIGH);
+   digitalWrite(defaultPin, HIGH);
    
-   // clear all values in the trigger sequence
+   // clear all values in the trigger sequence - default pin is 0 to start
    memset(triggerSequence, '0', sizeof(triggerSequence));
 
    Serial.begin(9600);
@@ -53,6 +54,10 @@ loop has two stages
     character array in 'triggerSequence'.  Current valve is saved
     as an index called 'triggerPosition'
     
+    Alternatively, you can send a two character sequence 'X-' where the -
+    is the new default valve (same convention as the sequence values).  
+    This can be used to manually switch the valves. 
+    
 2)  Check the state of the triggerPin and pass thru it's state to
     the correct pin, and turn off valve 0.  This will continually 
     be set through each time in the loop, which is wasteful but no 
@@ -66,97 +71,173 @@ loop has two stages
 void loop(){
   // serial
   if (Serial.available()>0) {
-    memset(triggerSequence, '0', sizeof(triggerSequence));
+    memset(triggerSequence, pin2char(defaultPin), sizeof(triggerSequence));
     triggerPosition = 0;
 
     Serial.readBytesUntil('\n', triggerSequence, 2048);
     
-    updateThruPin();
-    digitalWrite(7, HIGH); // reset so valve 0 is on
-  }
-  
+    if (triggerSequence[0] == 'X') { // need to set the default pin to something else
+      int newDefaultPin = char2pin(triggerSequence[1]);
+      if (newDefaultPin != defaultPin) {
+        digitalWrite(defaultPin, LOW);
+        defaultPin = newDefaultPin;
+        memset(triggerSequence, pin2char(defaultPin), sizeof(triggerSequence));
+      }  
+    } else {
+      outPin = char2pin(triggerSequence[triggerPosition]);  
+    }
+
+    digitalWrite(defaultPin, HIGH); // reset so valve 0 is on
+    
+  }  
   // pin logic
   triggerVal = digitalRead(triggerPin);
   if (triggerVal == HIGH) {
-    // set valve 0 to off
-    digitalWrite(7, LOW);
-    digitalWrite(outPin, HIGH);
+    // set default pin off and out pin on
+    if (outPin != defaultPin) {
+      digitalWrite(outPin, HIGH);
+      digitalWrite(defaultPin, LOW);
+    }
     //delay(10);
     wasTriggered = 1;
   } else {
-    digitalWrite(outPin, LOW);
-    digitalWrite(7,HIGH);
+    // set outpin off and default pin on
+     if (outPin != defaultPin) {
+       digitalWrite(outPin, LOW);
+       digitalWrite(defaultPin, HIGH);
+     }
     //delay(10);
     if (wasTriggered) {
       triggerPosition += 1;
-      updateThruPin();
+      outPin = char2pin(triggerSequence[triggerPosition]);  
       wasTriggered = 0;
     }
   }
 }
 
 // this code is to map serial character to the right pin for each valve
-void updateThruPin() {
-    inputVal = triggerSequence[triggerPosition];
+int char2pin(char inputVal) {
+     int out;
     
     switch (inputVal) {
       case '0':
-        outPin = 7;
+        out = 7;
         break;
       case '1':
-        outPin = 8;
+        out = 8;
         break;
       case '2':
-        outPin = 9;
+        out = 9;
         break;
       case '3':
-        outPin = 10;
+        out = 10;
         break;
       case '4':
-        outPin = 11;
+        out = 11;
         break;
       case '5':
-        outPin = 12;
+        out = 12;
         break;
       case '6':
-        outPin = 13;
+        out = 13;
         break;
       case '7':
-        outPin = 14;
+        out = 14;
         break;
       case '8':
-        outPin = 15;
+        out = 15;
         break;
       case '9':
-        outPin = 16;
+        out = 16;
         break;
       case 'a':
-        outPin = 17;
+        out = 17;
         break;
       case 'b':
-        outPin = 45;
+        out = 45;
         break;
       case 'c':
-        outPin = 44;
+        out = 44;
         break;
       case 'd':
-        outPin = 43;
+        out = 43;
         break;
       case 'e':
-        outPin = 42;
+        out = 42;
         break;
       case 'f':
-        outPin = 41;
+        out = 41;
         break;
       case '\0':  // string termination: valve 0
-        outPin = 7;
+        out = defaultPin;
         break;
       default: // anything weird:  valve 0
-        outPin = 7;
+        out = defaultPin;
         break;
     }
     Serial.print("Next pin: ");
-    Serial.println(outPin);
+    Serial.println(out);
     
     Serial.flush();
+    return out;
+}
+
+// this code does the reverse, it returns a valid serial character for a given pin number
+char pin2char(int pinNumber) {
+     char out;
+    
+    switch (pinNumber) {
+      case 7:
+        out = '0';
+        break;
+      case 8:
+        out = '1';
+        break;
+      case 9:
+        out = '2';
+        break;
+      case 10:
+        out = '3';
+        break;
+      case 11:
+        out = '4';
+        break;
+      case 12:
+        out = '5';
+        break;
+      case 13:
+        out = '6';
+        break;
+      case 14:
+        out = '7';
+        break;
+      case 15:
+        out = '8';
+        break;
+      case 16:
+        out = '9';
+        break;
+      case 17:
+        out = 'a';
+        break;
+      case 45:
+        out = 'b';
+        break;
+      case 44:
+        out = 'c';
+        break;
+      case 43:
+        out = 'd';
+        break;
+      case 42:
+        out = 'e';
+        break;
+      case 41:
+        out = 'f';
+        break;
+      default: // anything weird:  valve 0
+        out = '\0';
+        break;
+    }
+    return out;
 }
